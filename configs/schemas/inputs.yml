@@ -1,0 +1,123 @@
+# Unified schema for the word stimuli fed to the models.
+# One row per word, pooling the three source datasets in data/datasets/:
+# real-but-rare words, coined words, and pseudoword soundalikes of the rare words.
+
+name: nonce_words
+description: >
+  A word presented to a model as a stimulus, together with what is known about it
+  (whether it is a real English word, what it means, and how it is used). Fields that
+  describe knowledge the model is being asked to recover are null for stimuli where
+  that knowledge does not exist or must be withheld.
+row_grain: one word
+primary_key: [word_id]
+
+fields:
+  - name: word_id
+    type: string
+    required: true
+    nullable: false
+    description: >
+      Globally unique id, formatted "<word_source>-<n>" with n zero-padded to 4 digits.
+      Soundalikes are numbered off their parent rare word as
+      "soundalike-<parent n>-<variant 1-5>"; the parent is also given explicitly in
+      word_soundalike.
+    examples: [rare-0001, coined-0001, soundalike-0001-3]
+
+  - name: word_string
+    type: string
+    required: true
+    nullable: false
+    description: The word itself, lowercase, as shown to the model. Unique across the table.
+    examples: [abligurition, acousmodynia, abligoration]
+
+  - name: word_source
+    type: string
+    required: true
+    nullable: false
+    description: Which source dataset the word came from.
+    values:
+      rare: real English word attested in Wiktionary or Webster's Second (1934); data/datasets/rare-words.csv
+      coined: word invented from Greek/Latin roots, not in any dictionary; data/datasets/coined-words.csv
+      soundalike: pseudoword formed by perturbing a rare word; data/datasets/rare-words-soundalikes.csv
+
+  - name: word_exists
+    type: boolean
+    required: true
+    nullable: false
+    description: >
+      Whether the word is an attested English word. True only for word_source "rare";
+      false for "coined" and "soundalike".
+
+  - name: word_soundalike
+    type: string
+    required: true
+    nullable: true
+    description: >
+      For a soundalike pseudoword, the word_id of the attested word it was perturbed from
+      (a foreign key into this table, always a "rare-*" row). Null for "rare" and "coined"
+      rows, which are not derived from another word. Join on this to compare a model's
+      guessed meaning for a pseudoword against the parent word's word_meaning, or to
+      compare the five variants of one parent against each other.
+    examples: [rare-0001]
+    constraints:
+      - non-null if and only if word_source == "soundalike"
+      - must match an existing word_id
+
+  - name: word_usage
+    type: array of string
+    required: true
+    nullable: true
+    description: >
+      Example sentences using the word, each containing exactly one inflected form of it.
+      Null for soundalikes, which have no attested or authored usage. When serialized to
+      CSV the list is exploded into one row per sentence with an added usage_id column.
+    examples:
+      - ["The duke's abligurition left the treasury empty after a single week of banquets."]
+
+  - name: word_meaning
+    type: string
+    required: true
+    nullable: true
+    description: >
+      Gloss of the word: the dictionary definition for rare words, the intended definition
+      for coined words. Null for soundalikes — recovering a meaning for these is the task,
+      and the parent word's definition would leak the answer.
+    examples:
+      - extravagant spending on food and drink
+      - pain caused by a persistent unwanted sound
+
+# How each source CSV maps onto the fields above.
+sources:
+  - path: data/datasets/rare-words.csv
+    rows: 500 words x 5 sentences
+    mapping:
+      word_id: '"rare-" + zero-pad(word_id, 4)'
+      word_string: word
+      word_source: '"rare"'
+      word_exists: 'true'
+      word_soundalike: 'null'
+      word_usage: list of the 5 sentence values grouped by word_id
+      word_meaning: definition
+
+  - path: data/datasets/coined-words.csv
+    rows: 500 words x 1 example
+    mapping:
+      word_id: '"coined-" + zero-pad(id, 4)'
+      word_string: word
+      word_source: '"coined"'
+      word_exists: 'false'
+      word_soundalike: 'null'
+      word_usage: '[example]'
+      word_meaning: meaning
+    dropped_columns: [theme, pronunciation, part_of_speech, root_1, root_1_language, root_1_meaning, root_2, root_2_language, root_2_meaning, modeled_on]
+
+  - path: data/datasets/rare-words-soundalikes.csv
+    rows: 500 parent words x 5 pseudowords
+    mapping:
+      word_id: '"soundalike-" + zero-pad(word_id, 4) + "-" + pseudoword_id'
+      word_string: pseudoword
+      word_source: '"soundalike"'
+      word_exists: 'false'
+      word_soundalike: '"rare-" + zero-pad(word_id, 4)  # the `word` column is the parent'
+      word_usage: 'null'
+      word_meaning: 'null  # parent definition withheld'

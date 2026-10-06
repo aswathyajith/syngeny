@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+src/main.py
+src/data/merge_stimuli.py
+src/data/utils.py
+src/evals/text_similarity.py
+src/inference/build_prompts.py
+src/inference/providers/globus_cluster.py
+src/inference/providers/openrouter.py
+src/syngeny.egg-info/PKG-INFO
+src/syngeny.egg-info/SOURCES.txt
+src/syngeny.egg-info/dependency_links.txt
+src/syngeny.egg-info/top_level.txt
+src/utils/output_formatter.py

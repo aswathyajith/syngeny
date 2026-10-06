@@ -1,0 +1,97 @@
+# Schema for raw model outputs: what each model said about each word stimulus.
+# One row per (model, word) query. Read and written by src/utils/output_formatter.py,
+# which supports .csv and .jsonl; .jsonl is preferred because model_response is long,
+# multi-line free text.
+
+name: outputs
+description: >
+  The unparsed result of asking one model about one word from the nonce_words table.
+  This is the record the cross-model agreement analysis is built on: joining two rows
+  that share word_string but differ in model gives one pair of meanings to compare.
+row_grain: one (model, word) query
+primary_key: [model, word_string]
+joins:
+  nonce_words: outputs.word_string -> nonce_words.word_string
+
+fields:
+  - name: model
+    type: string
+    required: true
+    nullable: false
+    description: >
+      Identifier of the model queried, recorded exactly as it was passed to the provider
+      so a run can be replayed. For OpenRouter this is the "<vendor>/<model>" route id
+      (src/inference/providers/openrouter.py); for a model served from the Globus cluster
+      it is the name the local server exposes (src/inference/providers/globus_cluster.py).
+      The set of models for a run is listed in configs/models.json.
+    examples: [openai/gpt-4o-mini, qwen3.8-flash-next]
+
+  - name: word_string
+    type: string
+    required: true
+    nullable: false
+    description: >
+      The word the model was asked about, matching nonce_words.word_string exactly
+      (the surface form interpolated into the {{WORD}} slot of the user prompt template).
+      Carries no indication of whether the word is real, coined, or a soundalike —
+      look that up in nonce_words via word_source.
+    examples: [abligurition, acousmodynia, abligoration]
+
+  - name: model_response
+    type: string
+    required: true
+    nullable: true
+    description: >
+      The model's completion, verbatim and unparsed — response.choices[0].message.content
+      with no stripping. Under the guess_meaning prompt templates this contains the
+      scratchpad reasoning followed by the model's definition wrapped in <answer> tags,
+      so it is free text and may span many lines. Null if the request failed or the model
+      returned no content; such rows are kept rather than dropped so that a missing answer
+      is distinguishable from a word that was never queried.
+    examples:
+      - "Breaking this down: ab- 'away', ligurire 'to be dainty about food'... <answer>wasteful spending on fine food</answer>"
+
+# Provenance fields worth promoting into `fields` once a run varies along these axes.
+# Without them, two rows produced under different prompts or sampling settings are
+# indistinguishable, and primary_key above stops holding.
+extensions:
+  - name: word_id
+    type: string
+    description: >
+      nonce_words.word_id. A more robust join key than word_string, and the only way to
+      disambiguate if a coined word and a soundalike ever collide on spelling.
+  - name: prompt_template
+    type: string
+    description: >
+      Which template produced the prompt, as the path under
+      data/prompt_templates/tasks/ (e.g. "guess_meaning/p1"). Needed as soon as a second
+      prompt variant (p2, ...) is run.
+  - name: temperature
+    type: float
+    description: >
+      Sampling temperature. Defaults to 0.0 in OpenRouterClient, i.e. one response per
+      (model, word); any non-zero value means sample_id below is also required.
+  - name: sample_id
+    type: integer
+    description: Index of the sample when more than one response is drawn per query.
+  - name: max_tokens
+    type: integer
+    description: >
+      Token cap on the completion (256 by default). Worth recording because a truncated
+      response can lose the closing </answer> tag and look like a parse failure.
+  - name: model_answer
+    type: string
+    description: >
+      The definition extracted from the <answer> tags in model_response. Derived, not
+      measured — keep it alongside the raw text rather than in place of it, so the
+      extraction can be revised without re-running inference.
+  - name: finish_reason
+    type: string
+    description: >
+      response.choices[0].finish_reason ("stop", "length", ...). Separates a model that
+      declined to answer from one that ran out of tokens.
+  - name: queried_at
+    type: string (ISO 8601 timestamp)
+    description: >
+      When the query was issued. OpenRouter routes the same model id to different
+      backends over time, so the date is part of identifying what actually answered.
