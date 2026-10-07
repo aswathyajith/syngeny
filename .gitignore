@@ -1,6 +1,6 @@
 .template
 .vscode
-data
-results
-responses
+/data/
+/results
+/responses
 .DS_Store
