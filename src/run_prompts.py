@@ -3,6 +3,9 @@ import pandas as pd
 import argparse
 import os
 import json
+import random
+import numpy as np
+from transformers import set_seed
 from tqdm import tqdm 
 from data.utils import load_data, append_data
 from inference.clients.openrouter import OpenRouterClient
@@ -22,26 +25,27 @@ def query_model_on_dataset(
         responses_dir = "responses/openai/gpt-4o-mini/sample-10", 
         max_tokens = 2048,
         temperature = 0.0,
+        seed=42,
         max_consecutive_failures = 5,
         stop = None
     ):
-
-    if provider == "openrouter":
-        client = OpenRouterClient(model=model, max_tokens=max_tokens, temperature = temperature)
-    elif provider == "huggingface":
-        client = LocalTransformersClient(model=model, max_tokens=max_tokens, temperature=temperature, stop=stop)
-
-    # The local client takes stop strings at construction; the API takes them per request.
-    query_kwargs = {"stop": stop} if stop and provider == "openrouter" else {}
-
-    os.makedirs(responses_dir, exist_ok=True)
-
+    
     processed_words = load_data(output_path).word.tolist() if os.path.exists(output_path) else []
 
     df_new = df[~df['word'].isin(processed_words)]  # Filter out already processed words
     if len(df_new) == 0: 
         print(f"No words remaining to test {model} on.")
         return
+    
+    if provider == "openrouter":
+        client = OpenRouterClient(model=model, max_tokens=max_tokens, temperature=temperature, seed=seed)
+    elif provider == "huggingface":
+        client = LocalTransformersClient(model=model, max_tokens=max_tokens, temperature=temperature, stop=stop, seed=seed)
+
+    # The local client takes stop strings at construction; the API takes them per request.
+    query_kwargs = {"stop": stop} if stop and provider == "openrouter" else {}
+
+    os.makedirs(responses_dir, exist_ok=True)
     
     print(f"Total words remaining to process: {len(df_new)}")
     print(f"Responses will be saved to: {responses_dir}")
@@ -102,16 +106,21 @@ if __name__ == "__main__":
     parser.add_argument("--provider", default="openrouter", help="Model id on provider", choices=["openrouter", "huggingface"])
     parser.add_argument("--model-ids", default=None, help="Model ids on provider", nargs='+')
     parser.add_argument("--prompt-path-fmt", default="data/prompts/guess_meaning/p1/{dataset_name}.jsonl")
-    parser.add_argument("--responses-dir-fmt", default="responses/{model}/{dataset_name}/tmp={temperature}")
+    parser.add_argument("--responses-dir-fmt", default="responses/{model}/{dataset_name}/tmp={temperature}/seed={seed}")
     parser.add_argument("--results-path-fmt", default="results/{dataset_name}/{model}/tmp={temperature}/results.jsonl")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=2048)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--stop", default=None, nargs="+", help="strings that end generation")
     args = parser.parse_args()
 
     provider = args.provider
     temperature = args.temperature
     max_tokens = args.max_tokens
+    seed = args.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    set_seed(seed)  # python, numpy and torch (incl. CUDA)
     if args.model_ids: 
         models = args.model_ids
     else:
@@ -124,9 +133,10 @@ if __name__ == "__main__":
                 df, 
                 model=model, 
                 provider=provider,
-                output_path = args.results_path_fmt.format(model=model, dataset_name=dataset_name, temperature=temperature),
-                responses_dir = args.responses_dir_fmt.format(model=model, dataset_name=dataset_name, temperature=temperature), 
+                output_path = args.results_path_fmt.format(model=model, dataset_name=dataset_name, temperature=temperature, seed=seed),
+                responses_dir = args.responses_dir_fmt.format(model=model, dataset_name=dataset_name, temperature=temperature, seed=seed), 
                 max_tokens=max_tokens,
                 temperature=temperature,
+                seed=seed,
                 stop=args.stop
             )

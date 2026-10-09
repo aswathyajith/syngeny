@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 
 DTYPES = {
     "float32": torch.float32,
@@ -38,6 +38,7 @@ class LocalTransformersClient:
             model: str,
             temperature: float = 0.0,
             max_tokens: int = 256,
+            seed: int = 42,
             device: str | None = None,
             dtype: str | None = None,
             use_chat_template: bool | None = None,
@@ -47,9 +48,11 @@ class LocalTransformersClient:
         self.model_id = model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.seed = seed
         self.use_chat_template = use_chat_template
         self.stop = stop
         self.device = device or default_device()
+        print(f"Auto-detected device as {self.device}..")
         torch_dtype = DTYPES[dtype] if dtype else default_dtype(self.device)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model)
@@ -116,6 +119,9 @@ class LocalTransformersClient:
         # `stop_strings` needs the tokenizer to match the strings against the decoded text.
         stopping = {"stop_strings": self.stop, "tokenizer": self.tokenizer} if self.stop else {}
 
+        # Reseed per call so each output is independent of query order and resumed runs.
+        set_seed(self.seed)
+
         with torch.inference_mode():
             output_ids = self.model.generate(
                 **inputs,
@@ -147,6 +153,7 @@ def main():
     parser.add_argument("--system-prompt", default=None, help="optional system prompt")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=256)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None, help="cuda, mps or cpu (default: autodetect)")
     parser.add_argument("--dtype", default=None, choices=list(DTYPES), help="default: per device")
     parser.add_argument("--stop", default=None, nargs="+", help="strings that end generation")
@@ -163,6 +170,7 @@ def main():
         model=args.model,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
+        seed=args.seed,
         device=args.device,
         dtype=args.dtype,
         use_chat_template=args.chat_template,

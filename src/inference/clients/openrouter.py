@@ -16,6 +16,7 @@ class OpenRouterClient:
             temperature: float = 0.0,
             max_tokens: int = 256,
             max_retries: int = 3,
+            seed: int | None = None,
         ):
 
         api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
@@ -25,6 +26,7 @@ class OpenRouterClient:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.seed = seed
         self.client = OpenAI(base_url=BASE_URL, api_key=api_key, max_retries=max_retries)
 
     def query(
@@ -47,6 +49,7 @@ class OpenRouterClient:
             messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            seed=self.seed,
             **kwargs,
         )
 

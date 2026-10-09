@@ -4,3 +4,6 @@
 /results
 /responses
 .DS_Store
+*.pyc
+logs/
+src/syngeny.egg-info/
