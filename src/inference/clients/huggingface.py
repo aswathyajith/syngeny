@@ -17,6 +17,7 @@ class HuggingFaceClient:
             max_tokens: int = 256,
             max_retries: int = 3,
             base_url: str = BASE_URL,
+            seed: int | None = None,
         ):
 
         api_key = api_key or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY")
@@ -26,6 +27,7 @@ class HuggingFaceClient:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.seed = seed
         self.client = OpenAI(base_url=base_url, api_key=api_key, max_retries=max_retries)
 
     def query(
@@ -48,6 +50,7 @@ class HuggingFaceClient:
             messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            seed=self.seed,
             **kwargs,
         )
 

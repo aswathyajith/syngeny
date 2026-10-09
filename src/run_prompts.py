@@ -9,11 +9,13 @@ from transformers import set_seed
 from tqdm import tqdm 
 from data.utils import load_data, append_data
 from inference.clients.openrouter import OpenRouterClient
+from inference.clients.huggingface import HuggingFaceClient
 from inference.clients.local_transformers import LocalTransformersClient
 
 
 MODELS = {
     "huggingface": HF_MODEL_LABEL_MAP, 
+    "huggingface-api": HF_MODEL_LABEL_MAP,
     "openrouter": OR_MODEL_LABEL_MAP
 }
 
@@ -39,11 +41,13 @@ def query_model_on_dataset(
     
     if provider == "openrouter":
         client = OpenRouterClient(model=model, max_tokens=max_tokens, temperature=temperature, seed=seed)
+    elif provider == "huggingface-api":
+        client = HuggingFaceClient(model=model, max_tokens=max_tokens, temperature=temperature, seed=seed)
     elif provider == "huggingface":
         client = LocalTransformersClient(model=model, max_tokens=max_tokens, temperature=temperature, stop=stop, seed=seed)
 
     # The local client takes stop strings at construction; the API takes them per request.
-    query_kwargs = {"stop": stop} if stop and provider == "openrouter" else {}
+    query_kwargs = {"stop": stop} if stop and provider != "huggingface" else {}
 
     os.makedirs(responses_dir, exist_ok=True)
     
@@ -103,7 +107,7 @@ def query_model_on_dataset(
 if __name__ == "__main__": 
 
     parser = argparse.ArgumentParser(description="Run dataset of prompts through a model")
-    parser.add_argument("--provider", default="openrouter", help="Model id on provider", choices=["openrouter", "huggingface"])
+    parser.add_argument("--provider", default="openrouter", help="Model id on provider", choices=["openrouter", "huggingface", "huggingface-api"])
     parser.add_argument("--model-ids", default=None, help="Model ids on provider", nargs='+')
     parser.add_argument("--prompt-path-fmt", default="data/prompts/guess_meaning/p1/{dataset_name}.jsonl")
     parser.add_argument("--responses-dir-fmt", default="responses/{model}/{dataset_name}/tmp={temperature}/seed={seed}")
