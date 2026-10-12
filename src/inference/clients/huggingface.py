@@ -1,11 +1,13 @@
 import argparse
 import os
-
-from openai import OpenAI
+from huggingface_hub import InferenceClient
 
 BASE_URL = "https://router.huggingface.co/v1"
 
-
+OLLAMA_MODELS = {
+    "Qwen/Qwen2.5-7B-Instruct": "qwen2.5:7b",
+    "google/gemma-3-4b-it": "gemma3:4b-it-qat"
+}
 class HuggingFaceClient:
     """Queries a model served through Hugging Face's OpenAI-compatible router API."""
 
@@ -24,20 +26,22 @@ class HuggingFaceClient:
         if not api_key:
             raise ValueError("No API key given (set HF_TOKEN or pass api_key=...)")
 
-        self.model = model
+        self.model = OLLAMA_MODELS[model]
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.seed = seed
-        self.client = OpenAI(base_url=base_url, api_key=api_key, max_retries=max_retries)
+        # self.client = OpenAI(base_url=base_url, api_key=api_key, max_retries=max_retries)
+        self.client = InferenceClient(base_url="http://localhost:11434/v1", api_key="ollama")
 
     def query(
             self,
             prompt: str = "Hello!",
             system_prompt: str | None = None,
             messages: list[dict] | None = None,
+            seed: int | None = None,
             **kwargs,
         ):
-        """Sends a single prompt and returns the completion object."""
+        """Sends a single prompt and returns the completion object; `seed` overrides the client's seed for this call."""
 
         if messages is None:
             messages = []
@@ -50,7 +54,7 @@ class HuggingFaceClient:
             messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
-            seed=self.seed,
+            seed=self.seed if seed is None else seed,
             **kwargs,
         )
 

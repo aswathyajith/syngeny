@@ -102,9 +102,13 @@ class LocalTransformersClient:
             prompt: str = "Hello!",
             system_prompt: str | None = None,
             messages: list[dict] | None = None,
+            seed: int | None = None,
             **kwargs,
         ):
-        """Generates a continuation and returns the raw output token ids."""
+        """Generates a continuation and returns the raw output token ids.
+
+        `seed` overrides the client's seed for this call.
+        """
 
         text = self.build_prompt(prompt, system_prompt=system_prompt, messages=messages)
         inputs = self.tokenizer(text, return_tensors="pt").to(self.device)
@@ -120,7 +124,7 @@ class LocalTransformersClient:
         stopping = {"stop_strings": self.stop, "tokenizer": self.tokenizer} if self.stop else {}
 
         # Reseed per call so each output is independent of query order and resumed runs.
-        set_seed(self.seed)
+        set_seed(self.seed if seed is None else seed)
 
         with torch.inference_mode():
             output_ids = self.model.generate(
@@ -133,7 +137,21 @@ class LocalTransformersClient:
             )
 
         self.prompt_length = inputs["input_ids"].shape[-1]
+        self.finish_reason = self._finish_reason(output_ids[0][self.prompt_length:])
         return output_ids
+
+    def _finish_reason(self, completion_ids):
+        """Returns "length" if generation hit max_tokens without finishing, else "stop"."""
+
+        eos_ids = self.model.generation_config.eos_token_id
+        eos_ids = {eos_ids} if isinstance(eos_ids, int) else set(eos_ids or [])
+        if completion_ids.numel() > 0 and completion_ids[-1].item() in eos_ids:
+            return "stop"
+        if completion_ids.numel() >= self.max_tokens:
+            text = self.tokenizer.decode(completion_ids, skip_special_tokens=True)
+            if not (self.stop and any(s in text for s in self.stop)):
+                return "length"
+        return "stop"
 
     def query_text(self, prompt: str = "Hello!", system_prompt: str | None = None, **kwargs):
         """Generates a continuation and returns the new text only."""

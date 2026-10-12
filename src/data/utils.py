@@ -51,6 +51,8 @@ def extract_answer(
     end_idx = response_text.find(tag_end)
 
     if start_idx == -1 or end_idx == -1:
+        if error_message == "skip": 
+            return response_text
         return error_message
 
     return response_text[start_idx + len(tag_start):end_idx].strip()
@@ -68,3 +70,36 @@ def append_data(df: pd.DataFrame, path: str) -> pd.DataFrame:
 
     save_data(combined_df, path)
     return combined_df
+
+
+def process_model_results(results_path, models, temperatures, seeds):
+    """
+        Computes similarity between outputs from model pairs
+    """
+    stacked_df = pd.DataFrame()
+
+    for model in models:
+        for tmp in temperatures: 
+            for seed in seeds:
+                model_outputs_df_path = results_path.format(model=model, temperature=tmp, seed=seed)
+                if os.path.exists(model_outputs_df_path):
+                    model_outputs_df = load_data(model_outputs_df_path)
+                    if "temperature" not in model_outputs_df.columns: 
+                        model_outputs_df["temperature"] = tmp
+                    if "seed" not in model_outputs_df.columns: 
+                        model_outputs_df["seed"] = seed
+                    print(f"Loaded results from: {model_outputs_df_path}")
+                    stacked_df = pd.concat([stacked_df, model_outputs_df], ignore_index=True)
+                else:
+                    print(f"No results found for {model_outputs_df_path}")
+
+    # convert to wide format for easier comparison
+    stacked_df["model_meaning"] = stacked_df["model_response"].apply(lambda x: extract_answer(x, error_message="skip"))
+
+    proc_df = (
+        stacked_df.pivot(index=['word', "temperature", "seed"], columns='model', values='model_meaning')
+        .reset_index()
+        .rename_axis(None, axis=1)
+    )
+    
+    return proc_df

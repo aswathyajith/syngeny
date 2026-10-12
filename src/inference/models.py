@@ -10,14 +10,28 @@ OR_MODEL_LABEL_MAP = {
 }
 OR_MODELS = list(OR_MODEL_LABEL_MAP.keys())
 
-HF_MODEL_LABEL_MAP = {
-    "Qwen/Qwen2.5-0.5B-Instruct": "Qwen2.5 0.5B",
-    # "Qwen/Qwen2.5-1.5B-Instruct": "Qwen2.5 1.5B",
-    # "Qwen/Qwen2.5-3B-Instruct": "Qwen2.5 3B",
-    # "Qwen/Qwen2.5-7B-Instruct": "Qwen2.5 7B",
-    "EleutherAI/pythia-1b": "Pythia 1B"
+MODEL_LABEL_MAP = {
+    "Qwen2.5": {
+        "Qwen/Qwen2.5-0.5B-Instruct": "Qwen2.5-0.5B-Instruct",
+        "Qwen/Qwen2.5-1.5B-Instruct": "Qwen2.5-1.5B-Instruct",
+        "Qwen/Qwen2.5-3B-Instruct": "Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct": "Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-72B-Instruct": "Qwen2.5-72B-Instruct",
+        "Qwen/Qwen2.5-72B-Instruct-GPTQ-Int4": "Qwen2.5-72B-Instruct-GPTQ-Int4",
+    },
+    "Gemma3": {
+        "google/gemma-3-1b-it": "Gemma3-1B-IT",
+        "google/gemma-3-4b-it": "Gemma3-4B-IT",
+        "google/gemma-3-12b-it": "Gemma3-12B-IT"
+    },
+    "Llama": {
+        "meta-llama/Llama-3.2-1B-Instruct": "Llama3.2-1B-Instruct",
+        "meta-llama/Llama-3.2-3B-Instruct": "Llama3.2-3B-Instruct",
+        "meta-llama/Llama-3.1-8B-Instruct": "Llama3.1-8B-Instruct",
+    }
+
 }
-HF_MODELS = list(HF_MODEL_LABEL_MAP.keys())
+
 
 DATASETS = {
     "sample-10": "Fake", 

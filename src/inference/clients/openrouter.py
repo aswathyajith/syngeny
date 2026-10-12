@@ -34,9 +34,10 @@ class OpenRouterClient:
             prompt: str = "Hello!",
             system_prompt: str | None = None,
             messages: list[dict] | None = None,
+            seed: int | None = None,
             **kwargs,
         ):
-        """Sends a single prompt and returns the completion object."""
+        """Sends a single prompt and returns the completion object; `seed` overrides the client's seed for this call."""
         
         if messages is None:
             messages = []
@@ -49,7 +50,7 @@ class OpenRouterClient:
             messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
-            seed=self.seed,
+            seed=self.seed if seed is None else seed,
             **kwargs,
         )
 
